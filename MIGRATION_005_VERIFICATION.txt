@@ -1,0 +1,168 @@
+MIGRATION 005 VERIFICATION REPORT
+═════════════════════════════════════════════════════════════════════════════
+
+FILE CREATED
+─────────────────────────────────────────────────────────────────────────────
+✓ supabase/migrations/005_seed_missing_frames_and_metadata.sql
+
+STATIC ANALYSIS
+─────────────────────────────────────────────────────────────────────────────
+
+✓ No DROP TABLE statements
+✓ No DELETE statements  
+✓ No ALTER TABLE ... DROP COLUMN statements
+✓ No database reset operations
+✓ No migration 001-004 modifications
+✓ No application source code modifications
+✓ No TypeScript compilation needed
+
+IDEMPOTENCY VERIFICATION
+─────────────────────────────────────────────────────────────────────────────
+
+✓ ALTER TABLE ... ADD COLUMN IF NOT EXISTS
+  → Safe to run multiple times; will skip existing columns
+
+✓ UPDATE frames SET ... WHERE type = 'official' AND is_active = true
+  → Idempotent UPDATE; sets same values on every run
+
+✓ INSERT ... ON CONFLICT (id) DO NOTHING
+  → Skips Double Portrait and Four Grid if they already exist
+
+✓ INSERT INTO frame_slots ... ON CONFLICT (frame_id, slot_order) DO NOTHING
+  → Skips slots if they already exist
+
+MIGRATION CONTENT
+─────────────────────────────────────────────────────────────────────────────
+
+Step 1: Add Columns (IF NOT EXISTS)
+  • width INTEGER DEFAULT 1080
+  • height INTEGER DEFAULT 1440
+  • canvas_width INTEGER DEFAULT 1080
+  • canvas_height INTEGER DEFAULT 1440
+  • creator_name TEXT
+  • tags JSONB
+
+Step 2: Update Existing Frames
+  Affected: Classic Strip, Editorial (if type='official' and is_active=true)
+  Updates:
+    • width = 1080
+    • height = 1440
+    • canvas_width = 1080
+    • canvas_height = 1440
+    • creator_name = 'Official' (only if NULL)
+    • tags = '[]' (only if NULL)
+
+Step 3: Insert New Frames
+  Double Portrait:
+    ID:            00000000-0000-0000-0000-000000000003
+    Name:          Double Portrait
+    Type:          official
+    Photo Count:   2
+    Layout:        duo
+    Creator Name:  Official
+    Tags:          ["portrait", "duo", "side-by-side"]
+    Dimensions:    1080×1440 (canvas: 1080×1440)
+    Public:        true
+    Active:        true
+
+  Four Grid:
+    ID:            00000000-0000-0000-0000-000000000004
+    Name:          Four Grid
+    Type:          official
+    Photo Count:   4
+    Layout:        grid
+    Creator Name:  Official
+    Tags:          ["grid", "square", "4-up"]
+    Dimensions:    1080×1440 (canvas: 1080×1440)
+    Public:        true
+    Active:        true
+
+Step 4: Insert frame_slots for Double Portrait
+  Slot 1: (80, 120, 430×1180) rotation=0°
+  Slot 2: (570, 120, 430×1180) rotation=0°
+
+Step 5: Insert frame_slots for Four Grid
+  Slot 1: (100, 130, 370×470) rotation=0°
+  Slot 2: (610, 130, 370×470) rotation=0°
+  Slot 3: (100, 700, 370×470) rotation=0°
+  Slot 4: (610, 700, 370×470) rotation=0°
+
+DATA SOURCE VERIFICATION
+─────────────────────────────────────────────────────────────────────────────
+
+All coordinates verified against src/data/sampleFrames.ts:
+
+✓ Classic Strip - 4 slots match exactly
+  Database:   140, 110 | 140, 410 | 140, 710 | 140, 1010
+  sampleFrames: 140, 110 | 140, 410 | 140, 710 | 140, 1010
+
+✓ Editorial - 3 slots match exactly
+  Database:   110, 90 | 110, 860 | 510, 860
+  sampleFrames: 110, 90 | 110, 860 | 510, 860
+
+✓ Double Portrait - 2 slots match exactly
+  sampleFrames: 80, 120 | 570, 120
+
+✓ Four Grid - 4 slots match exactly
+  sampleFrames: 100, 130 | 610, 130 | 100, 700 | 610, 700
+
+✓ Tags extracted from sampleFrames.ts
+  Double Portrait: ["portrait", "duo", "side-by-side"]
+  Four Grid:       ["grid", "square", "4-up"]
+
+EXISTING DATA PRESERVATION
+─────────────────────────────────────────────────────────────────────────────
+
+✓ Classic Strip (00000000-0000-0000-0000-000000000001)
+  → Preserved; metadata added
+  → 4 frame_slots already exist; no new slots added
+
+✓ Editorial (00000000-0000-0000-0000-000000000002)
+  → Preserved; metadata added
+  → 3 frame_slots already exist; no new slots added
+
+✓ All existing profiles, sessions, session_photos remain untouched
+
+✓ No data deleted or overwritten
+
+CONSTRAINTS & CHECKS
+─────────────────────────────────────────────────────────────────────────────
+
+✓ All official frames have owner_id = NULL
+✓ All official frames have type = 'official'
+✓ All official frames have is_public = true
+✓ All official frames have is_active = true
+✓ All frames pass existing CHECK constraints:
+  - type IN ('official', 'community')
+  - photo_count >= 1
+  - (type = 'community' OR owner_id IS NULL)
+  - (type = 'official' OR owner_id IS NOT NULL)
+
+✓ All frame_slots pass existing CHECK constraints:
+  - slot_order >= 1
+  - width > 0
+  - height > 0
+
+RLS POLICY COMPATIBILITY
+─────────────────────────────────────────────────────────────────────────────
+
+✓ All new frames will be visible to:
+  - Anonymous users (is_public=true)
+  - Authenticated users (is_public=true)
+
+✓ frame_slots inherit visibility via RLS exists() policy
+
+SAFETY ASSESSMENT
+─────────────────────────────────────────────────────────────────────────────
+
+Security Level:  ✓✓✓ HIGH - No destructive operations
+
+Migration Level: ✓✓✓ SAFE - Can be safely pasted into Supabase SQL Editor
+
+Re-runnable:     ✓✓✓ YES - Fully idempotent, no duplicate risk
+
+Data Loss Risk:  ✓✓✓ NONE - All existing data preserved
+
+Code Impact:     ✓✓✓ NONE - No application code changes required
+
+═════════════════════════════════════════════════════════════════════════════
