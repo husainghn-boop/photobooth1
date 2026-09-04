@@ -13,6 +13,7 @@ export type Frame = {
   likes?: number
   svg?: string // inline SVG overlay for demo frames
   frameImage?: string // local/data URL for an uploaded PNG frame
+  overlayPath?: string | null
   width: number
   height: number
   canvasWidth?: number

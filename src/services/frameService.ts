@@ -102,14 +102,31 @@ async function uploadFrameAsset(frameImage: string, ownerId: string, frameId: st
     })
     
     if (error) {
-      // Log actual error for debugging
+      // Log actual error for debugging with comprehensive diagnostic context
       if (import.meta.env.DEV) {
-        console.error('Storage upload failed:', {
-          path,
-          ownerId,
+        // Extract diagnostic fields from error object
+        const pathIsCommunity = path.startsWith('community/')
+        const pathParts = path.split('/')
+        const pathUserId = pathParts[1] || null
+        const extractedFrameId = pathParts[2] || null
+        
+        console.error('SUPABASE_STORAGE_INSERT_DIAGNOSTIC', {
+          name: error?.name,
+          message: error?.message,
+          status: error?.status,
+          statusCode: error?.statusCode,
+          code: (error as any)?.code,
+          details: (error as any)?.details,
+          hint: (error as any)?.hint,
+          userId: ownerId,
           frameId,
+          bucket: 'frame-assets',
+          path,
           blobSize: blob.size,
-          error: error.message || error
+          blobType: blob.type,
+          pathIsCommunity,
+          pathUserId,
+          extractedFrameId
         })
       }
       // Determine the specific error type for better messaging
@@ -133,7 +150,7 @@ async function uploadFrameAsset(frameImage: string, ownerId: string, frameId: st
   }
 }
 
-async function resolveFrameAsset(path: string | null): Promise<string | undefined> {
+export async function resolveFrameAsset(path: string | null | undefined): Promise<string | undefined> {
   if (!path) return undefined
   const { data, error } = await supabase.storage.from('frame-assets').createSignedUrl(path, 3600)
   return error ? undefined : data.signedUrl
@@ -329,6 +346,7 @@ async function fetchFromSupabase(): Promise<Frame[]> {
       id: row.id,
       name: row.name,
       ownerId: row.owner_id,
+      overlayPath: row.overlay_path,
       frameImage: await resolveFrameAsset(row.overlay_path),
       creatorName: row.creator_name || sample?.creatorName || (isOfficial ? 'Official' : 'Unknown'),
       isOfficial,

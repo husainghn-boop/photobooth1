@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useSession } from '../hooks/useSession'
 import { renderPhotobooth } from '../services/compositionService'
+import { resolveFrameAsset } from '../services/frameService'
 import { photoStore } from '../services/photoStore'
 import { getRequiredPhotoCount } from '../services/sessionService'
 
@@ -44,7 +45,47 @@ export default function Result() {
       setIsRendering(true)
       setRenderError('')
       try {
-        const canvas = await renderPhotobooth({ photos: photos as NonNullable<typeof photos[number]>[], photoEdits: session.photoEdits, frame: session.selectedFrame })
+        console.log('[Result] selectedFrame id', session.selectedFrame.id)
+        console.log('[Result] overlayPath', session.selectedFrame.overlayPath)
+        let runtimeFrame = session.selectedFrame
+        if (session.selectedFrame.overlayPath) {
+          console.log('[Result] resolving frame asset')
+          const signedUrl = await resolveFrameAsset(session.selectedFrame.overlayPath)
+          if (signedUrl) {
+            console.log('[Result] signed URL resolved')
+            runtimeFrame = { ...session.selectedFrame, frameImage: signedUrl }
+          } else {
+            console.warn('[Result] frame asset could not be resolved; preserving existing frame asset behavior')
+          }
+        }
+        console.log('[Result] rendering composition')
+        console.group('[Result] PHOTO DEBUG')
+        console.log('requiredPhotos:', requiredPhotos)
+        console.log('capturedPhotos.length:', session.capturedPhotos.length)
+        console.table(session.capturedPhotos.map((photo, index) => ({
+          index,
+          id: photo?.id ?? null,
+          order: photo?.order ?? null,
+          store: photo?.id ? (photoStore.get(photo.id) ? 'FOUND' : 'MISSING') : 'MISSING'
+        })))
+        console.groupEnd()
+        console.group('[Result] FRAME DEBUG')
+        console.log('frame.id:', session.selectedFrame.id)
+        console.log('photoCount:', session.selectedFrame.photoCount)
+        console.log('photoSlots.length:', session.selectedFrame.photoSlots.length)
+        console.log('canvasWidth:', session.selectedFrame.canvasWidth)
+        console.log('canvasHeight:', session.selectedFrame.canvasHeight)
+        console.table(session.selectedFrame.photoSlots.map((slot, index) => ({
+          slot: index,
+          photoIndex: slot.photoIndex ?? index,
+          x: slot.x,
+          y: slot.y,
+          width: slot.width,
+          height: slot.height,
+          rotation: slot.rotation ?? 0
+        })))
+        console.groupEnd()
+        const canvas = await renderPhotobooth({ photos: photos as NonNullable<typeof photos[number]>[], photoEdits: session.photoEdits, frame: runtimeFrame })
         if (!active) return
         const preview = canvasRef.current
         if (!preview) throw new Error('The composition preview is unavailable. Please reload the page.')

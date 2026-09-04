@@ -63,6 +63,14 @@ export async function renderPhotobooth({ photos, photoEdits, frame }: { photos: 
   const validation = validateFrame(frame)
   if (!validation.valid) throw new Error(validation.error || 'The selected frame is invalid.')
 
+  console.group('[Composition] INPUT DEBUG')
+  console.log('photos.length:', photos.length)
+  console.log('photoIds:', photos.map((photo) => photo.id))
+  console.log('frame.photoCount:', frame.photoCount)
+  console.log('frame.photoSlots.length:', frame.photoSlots.length)
+  console.log('photoIndexes:', frame.photoSlots.map((slot, index) => slot.photoIndex ?? index))
+  console.groupEnd()
+
   const canvasWidth = frame.canvasWidth ?? frame.width
   const canvasHeight = frame.canvasHeight ?? frame.height
   const canvas = document.createElement('canvas')
@@ -77,7 +85,26 @@ export async function renderPhotobooth({ photos, photoEdits, frame }: { photos: 
   for (const [index, slot] of frame.photoSlots.entries()) {
     const photoIndex = slot.photoIndex ?? index
     const sourcePhoto = photos[photoIndex]
-    if (!sourcePhoto) continue
+    const drawDetails = {
+      loopIndex: index,
+      photoIndex,
+      photoId: sourcePhoto?.id ?? null,
+      sourcePhotoFound: Boolean(sourcePhoto),
+      x: slot.x,
+      y: slot.y,
+      width: slot.width,
+      height: slot.height,
+      rotation: slot.rotation ?? 0
+    }
+    console.log('[Composition] DRAW PHOTO BEFORE', drawDetails)
+    if (!sourcePhoto) {
+      console.warn('[Composition] PHOTO MISSING FOR SLOT', {
+        loopIndex: index,
+        photoIndex,
+        availablePhotoIds: photos.map((photo) => photo.id)
+      })
+      continue
+    }
 
     const image = await loadCompositionImage(sourcePhoto.objectUrl, `photo ${photoIndex + 1}`)
     context.save()
@@ -89,12 +116,19 @@ export async function renderPhotobooth({ photos, photoEdits, frame }: { photos: 
     context.filter = filterCss[photoEdits[photoIndex]?.filter || 'original']
     drawImageToSlot(context, image, slot, -slot.width / 2, -slot.height / 2)
     context.restore()
+    console.log('[Composition] DRAW PHOTO AFTER', {
+      loopIndex: index,
+      photoIndex,
+      photoId: sourcePhoto.id
+    })
   }
 
   const overlaySource = frame.frameImage || frame.imageUrl || (frame.svg ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(frame.svg.replace(/viewBox="0 0 1200 1800"/, `viewBox="0 0 ${canvasWidth} ${canvasHeight}"`))}` : '')
   if (overlaySource) {
     const overlay = await loadCompositionImage(overlaySource, 'the selected frame overlay')
+    console.log('[Composition] BEFORE OVERLAY DRAW')
     context.drawImage(overlay, 0, 0, canvasWidth, canvasHeight)
+    console.log('[Composition] AFTER OVERLAY DRAW')
   }
 
   return canvas

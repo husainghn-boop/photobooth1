@@ -46,6 +46,7 @@ function frameMetadata(frame: Frame | null | undefined) {
     likes: frame.likes,
     svg: frame.svg,
     imageUrl: frame.imageUrl,
+    overlayPath: frame.overlayPath,
     width: frame.width,
     height: frame.height,
     canvasWidth: frame.canvasWidth ?? frame.width,
